@@ -10,7 +10,6 @@ DATA_KEY = "engine_temperature"
 # create a Flask server, and allow us to interact with it using the app variable
 app = Flask(__name__)
 
-
 # define an endpoint which accepts POST requests, and is reachable from the /record endpoint
 @app.route('/record', methods=['POST'])
 def record_engine_temperature():
@@ -32,7 +31,22 @@ def record_engine_temperature():
     logger.info(f"record request successful")
     return {"success": True}, 200
 
-# practically identical to the above
+# define the /collect endpoint to return current and average engine temperatures
 @app.route('/collect', methods=['POST'])
 def collect_engine_temperature():
-    return {"success": True}, 200
+    database = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
+    current_engine_temperature = database.lindex(DATA_KEY, 0)
+    engine_temperature_values = database.lrange(DATA_KEY, 0, -1)
+    
+    if engine_temperature_values:
+        average_engine_temperature = sum(map(float, engine_temperature_values)) / len(engine_temperature_values)
+    else:
+        average_engine_temperature = 0.0
+        
+    response = {
+        "current_engine_temperature": current_engine_temperature,
+        "average_engine_temperature": average_engine_temperature
+    }
+
+    logger.info(f"(*) collect response --- {json.dumps(response)} (*)")
+    return response, 200
